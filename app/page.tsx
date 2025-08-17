@@ -1,103 +1,305 @@
-import Image from "next/image";
+'use client';
+
+import React, { useState, useCallback } from 'react';
+import { GameState, Feedback as FeedbackType, IntroductionContent, CulturalContent, CompletionContent, MissionData } from '@/types/mission';
+import { baguetteMission } from '@/data/baguetteMission';
+import MissionInput from '@/components/MissionInput';
+import Header from '@/components/Header';
+import IntroductionStep from '@/components/IntroductionStep';
+import NPCDisplay from '@/components/NPCDisplay';
+import ActionChoices from '@/components/ActionChoices';
+import LanguageChoices from '@/components/LanguageChoices';
+import Feedback from '@/components/Feedback';
+import CulturalNote from '@/components/CulturalNote';
+import CompletionScreen from '@/components/CompletionScreen';
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [currentMission, setCurrentMission] = useState<MissionData | null>(null);
+  const [gameState, setGameState] = useState<GameState>({
+    currentStep: 0,
+    totalXP: 0,
+    mood: 0,
+    selectedChoice: null,
+    feedbackShown: false,
+    addonActive: false,
+    path: [],
+    nextAction: 'start'
+  });
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const [currentFeedback, setCurrentFeedback] = useState<FeedbackType | null>(null);
+
+  const currentStep = currentMission?.steps[gameState.currentStep];
+  const progress = currentMission ? ((gameState.currentStep + 1) / currentMission.steps.length) * 100 : 0;
+
+  const getMoodText = (mood: number) => {
+    if (mood > 0) return 'Friendly';
+    if (mood < 0) return 'Cold';
+    return 'Neutral';
+  };
+
+  const updateNextButton = useCallback((action: GameState['nextAction']) => {
+    setGameState(prev => ({ ...prev, nextAction: action }));
+  }, []);
+
+  const selectChoice = useCallback((index: number, moodChange: number) => {
+    setGameState(prev => ({
+      ...prev,
+      selectedChoice: index,
+      mood: prev.mood + moodChange,
+      selectedAction: currentStep?.addonLayer?.choices?.[index].action
+    }));
+
+    const action = currentStep?.addonLayer?.choices?.[index].action;
+    
+    if (action === 'greet') {
+      setTimeout(() => {
+        setGameState(prev => ({ 
+          ...prev, 
+          currentStep: 2,
+          addonActive: false
+        }));
+        setTimeout(() => {
+          setGameState(prev => ({ 
+            ...prev, 
+            addonActive: true,
+            nextAction: 'wait_language_selection'
+          }));
+        }, 100);
+      }, 300);
+    } else if (action === 'direct') {
+      setTimeout(() => {
+        setGameState(prev => ({ 
+          ...prev, 
+          currentStep: 3,
+          addonActive: false,
+          nextAction: 'proceed',
+          selectedChoice: null,
+          feedbackShown: false
+        }));
+      }, 300);
+    } else {
+      updateNextButton('proceed_after_feedback');
+    }
+  }, [currentStep, updateNextButton]);
+
+  const selectLanguageOption = useCallback((index: number) => {
+    setGameState(prev => ({ 
+      ...prev, 
+      selectedChoice: index,
+      nextAction: 'show_feedback'
+    }));
+  }, []);
+
+  const showFeedback = useCallback(() => {
+    if (gameState.selectedChoice === null || !currentStep?.addonLayer?.options) return;
+    
+    const option = currentStep.addonLayer.options[gameState.selectedChoice];
+    const feedback = option.feedback;
+    
+    setCurrentFeedback(feedback);
+    setGameState(prev => ({
+      ...prev,
+      totalXP: prev.totalXP + feedback.xp,
+      feedbackShown: true,
+      nextAction: 'proceed_after_feedback'
+    }));
+  }, [gameState.selectedChoice, currentStep]);
+
+  const handleNext = useCallback(() => {
+    switch (gameState.nextAction) {
+      case 'start':
+      case 'proceed':
+        const nextStepIndex = gameState.currentStep + 1;
+        const nextStep = currentMission?.steps[nextStepIndex];
+        let nextAction: GameState['nextAction'] = 'show_addon';
+        
+        if (nextStep?.type === 'introduction' || nextStep?.type === 'cultural' || nextStep?.type === 'completion') {
+          nextAction = 'proceed';
+        }
+        
+        setGameState(prev => ({
+          ...prev,
+          currentStep: nextStepIndex,
+          selectedChoice: null,
+          feedbackShown: false,
+          addonActive: false,
+          nextAction
+        }));
+        setCurrentFeedback(null);
+        break;
+
+      case 'show_addon':
+        setGameState(prev => ({
+          ...prev,
+          addonActive: true,
+          nextAction: 'wait_selection'
+        }));
+        break;
+
+      case 'show_feedback':
+        showFeedback();
+        break;
+
+      case 'proceed_after_feedback':
+        const nextStepAfterFeedback = gameState.currentStep + 1;
+        const nextStepAfterFeedbackData = currentMission?.steps[nextStepAfterFeedback];
+        let nextActionAfterFeedback: GameState['nextAction'] = 'show_addon';
+        
+        if (nextStepAfterFeedbackData?.type === 'introduction' || nextStepAfterFeedbackData?.type === 'cultural' || nextStepAfterFeedbackData?.type === 'completion') {
+          nextActionAfterFeedback = 'proceed';
+        }
+        
+        setGameState(prev => ({
+          ...prev,
+          currentStep: nextStepAfterFeedback,
+          selectedChoice: null,
+          feedbackShown: false,
+          addonActive: false,
+          nextAction: nextActionAfterFeedback
+        }));
+        setCurrentFeedback(null);
+        break;
+
+      case 'restart':
+        setGameState({
+          currentStep: 0,
+          totalXP: 0,
+          mood: 0,
+          selectedChoice: null,
+          feedbackShown: false,
+          addonActive: false,
+          path: [],
+          nextAction: 'start'
+        });
+        setCurrentFeedback(null);
+        break;
+    }
+  }, [gameState.nextAction, gameState.currentStep, currentMission, showFeedback]);
+
+  const getNextButtonText = () => {
+    switch (gameState.nextAction) {
+      case 'start': return 'Start Mission';
+      case 'proceed': 
+        if (currentStep?.type === 'introduction') return 'Begin Mission';
+        if (currentStep?.type === 'cultural') return 'Continue';
+        return 'Continue';
+      case 'show_addon': return 'Next';
+      case 'wait_selection':
+      case 'wait_language_selection': return 'Select an option';
+      case 'show_feedback': return 'Check Answer';
+      case 'proceed_after_feedback': return 'Continue';
+      case 'restart': return 'Restart Mission';
+      default: return 'Next';
+    }
+  };
+
+  const isButtonDisabled = () => {
+    return gameState.nextAction === 'wait_selection' || gameState.nextAction === 'wait_language_selection';
+  };
+
+  const renderMainContent = () => {
+    if (!currentStep) return null;
+    
+    switch (currentStep.type) {
+      case 'introduction':
+        return <IntroductionStep content={currentStep.content as IntroductionContent} />;
+      
+      case 'cultural':
+        return <CulturalNote content={currentStep.content as CulturalContent} />;
+      
+      case 'completion':
+        return <CompletionScreen content={currentStep.content as CompletionContent} totalXP={gameState.totalXP} />;
+      
+      case 'regular':
+        if (currentStep.mainLayer && !currentStep.mainLayer.preservePrevious) {
+          return (
+            <NPCDisplay 
+              npc={currentStep.mainLayer.npc!} 
+              dialogue={currentStep.mainLayer.dialogue!} 
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          );
+        }
+        return null;
+      
+      default:
+        return null;
+    }
+  };
+
+  const renderAddonContent = () => {
+    if (!gameState.addonActive || !currentStep?.addonLayer) return null;
+
+    switch (currentStep.addonLayer.type) {
+      case 'action_choice':
+        return (
+          <ActionChoices
+            prompt={currentStep.addonLayer.prompt}
+            choices={currentStep.addonLayer.choices!}
+            selectedChoice={gameState.selectedChoice}
+            onSelectChoice={selectChoice}
+          />
+        );
+      
+      case 'language_choice':
+        return (
+          <>
+            <LanguageChoices
+              prompt={currentStep.addonLayer.prompt}
+              options={currentStep.addonLayer.options!}
+              selectedChoice={gameState.selectedChoice}
+              onSelectOption={selectLanguageOption}
+              spotlight={currentStep.addonLayer.spotlight}
+            />
+            {currentFeedback && <Feedback feedback={currentFeedback} />}
+          </>
+        );
+      
+      default:
+        return null;
+    }
+  };
+
+  // Show mission input if no mission is loaded
+  if (!currentMission) {
+    return (
+      <MissionInput 
+        onMissionLoaded={setCurrentMission}
+        defaultMission={baguetteMission}
+      />
+    );
+  }
+
+  return (
+    <div className="w-full max-w-md h-screen max-h-[800px] bg-slate-900 rounded-3xl shadow-2xl overflow-hidden relative flex flex-col mx-auto">
+      <Header
+        totalXP={gameState.totalXP}
+        currentStep={gameState.currentStep + 1}
+        totalSteps={currentMission?.steps.length || 0}
+        mood={getMoodText(gameState.mood)}
+        progress={progress}
+      />
+
+      <div className="flex-1 relative bg-slate-800 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900 to-slate-800">
+          {renderMainContent()}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        
+        <div className={`absolute left-0 right-0 bg-slate-700 rounded-t-3xl p-8 max-h-[70%] overflow-y-auto shadow-2xl transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${
+          gameState.addonActive ? 'bottom-16' : '-bottom-full'
+        }`}>
+          {renderAddonContent()}
+        </div>
+      </div>
+
+      <button
+        className={`absolute bottom-5 left-5 right-5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-none p-4 rounded-2xl text-base font-semibold cursor-pointer transition-all duration-200 z-50 ${
+          isButtonDisabled() ? 'opacity-50 pointer-events-none' : 'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30'
+        }`}
+        onClick={handleNext}
+        disabled={isButtonDisabled()}
+      >
+        {getNextButtonText()}
+      </button>
     </div>
   );
 }
