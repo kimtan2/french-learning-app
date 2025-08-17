@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LanguageOption, Spotlight } from '@/types/mission';
 import AudioButton from '@/components/AudioButton';
+import elevenLabsService from '@/services/elevenlabs';
 
 interface LanguageChoicesProps {
   prompt: string;
@@ -17,28 +18,15 @@ const LanguageChoices: React.FC<LanguageChoicesProps> = ({
   onSelectOption,
   spotlight 
 }) => {
-  const [tooltipData, setTooltipData] = useState<{ 
-    show: boolean; 
-    text: string;
-    word: string;
-    x: number; 
-    y: number; 
-  }>({ show: false, text: '', word: '', x: 0, y: 0 });
-
-  const showWordTranslation = (event: React.MouseEvent, word: string, translation: string) => {
-    event.stopPropagation();
-    const rect = event.currentTarget.getBoundingClientRect();
-    setTooltipData({
-      show: true,
-      text: translation,
-      word: word,
-      x: rect.left + rect.width / 2,
-      y: rect.top - 10
-    });
+  const handleOptionSelect = async (index: number) => {
+    onSelectOption(index);
     
-    setTimeout(() => {
-      setTooltipData(prev => ({ ...prev, show: false }));
-    }, 3000); // Increased timeout to account for audio button
+    // Auto-play the audio for the selected option
+    try {
+      await elevenLabsService.playAudio(options[index].french, false);
+    } catch (error) {
+      console.error('Error playing audio:', error);
+    }
   };
 
   return (
@@ -50,11 +38,20 @@ const LanguageChoices: React.FC<LanguageChoicesProps> = ({
       {options.map((option, index) => (
         <div
           key={index}
-          onClick={() => onSelectOption(index)}
-          className={`bg-white/5 border-2 border-white/10 rounded-2xl p-4 mb-3 cursor-pointer transition-all duration-300 hover:bg-indigo-600/20 hover:border-indigo-400 relative ${
-            selectedChoice === index ? 'bg-indigo-600/30 border-indigo-400' : ''
+          onClick={() => handleOptionSelect(index)}
+          className={`bg-white/5 border-2 rounded-2xl p-4 mb-3 cursor-pointer transition-all duration-300 relative ${
+            selectedChoice === index 
+              ? 'bg-indigo-600/40 border-indigo-300 shadow-lg shadow-indigo-500/30 ring-2 ring-indigo-400' 
+              : 'border-white/10 hover:bg-indigo-600/20 hover:border-indigo-400'
           }`}
         >
+          {/* Selected indicator */}
+          {selectedChoice === index && (
+            <div className="absolute top-2 left-2 w-6 h-6 bg-indigo-500 rounded-full flex items-center justify-center">
+              <span className="text-white text-sm">✓</span>
+            </div>
+          )}
+          
           {/* Audio Button for full phrase pronunciation */}
           <div className="absolute top-3 right-3">
             <AudioButton 
@@ -64,18 +61,14 @@ const LanguageChoices: React.FC<LanguageChoicesProps> = ({
             />
           </div>
           
-          <div className="text-white text-lg mb-1 pr-10">
+          <div className={`text-white text-lg mb-1 pr-10 ${selectedChoice === index ? 'pl-8' : ''}`}>
             {option.words.map((word, wordIndex) => (
-              <span
-                key={wordIndex}
-                className="inline-block p-1 rounded transition-colors duration-200 cursor-pointer hover:bg-indigo-600/30"
-                onClick={(e) => showWordTranslation(e, word.text, word.translation)}
-              >
+              <span key={wordIndex}>
                 {word.text}
               </span>
             ))}
           </div>
-          <div className="text-indigo-400 text-sm italic">
+          <div className={`text-indigo-400 text-sm italic ${selectedChoice === index ? 'pl-8' : ''}`}>
             {option.phonetic}
           </div>
         </div>
@@ -89,26 +82,6 @@ const LanguageChoices: React.FC<LanguageChoicesProps> = ({
           <div className="text-slate-300 text-sm leading-relaxed">
             {spotlight.content}
           </div>
-        </div>
-      )}
-      
-      {/* Word Tooltip */}
-      {tooltipData.show && (
-        <div 
-          className="fixed bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm z-50 shadow-lg transition-opacity duration-300 flex items-center gap-2"
-          style={{ 
-            left: tooltipData.x, 
-            top: tooltipData.y,
-            transform: 'translateX(-50%)'
-          }}
-        >
-          <span>{tooltipData.text}</span>
-          <AudioButton 
-            text={tooltipData.word} 
-            isWord={true}
-            size="small"
-            className="bg-white/20 hover:bg-white/30"
-          />
         </div>
       )}
     </div>
