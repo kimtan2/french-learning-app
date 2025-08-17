@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       selectedVoiceId = 'pNInz6obpgDQGcFmaJgB';
     } else {
       // NPC voices based on gender
-      selectedVoiceId = gender === 'male' ? '2EiwWnXFnvU5JabPnv8n' : 'XB0fDUnXU5powFXDhCwa';
+      selectedVoiceId = '2EiwWnXFnvU5JabPnv8n';
     }
 
     const voiceConfig: VoiceConfig = {
