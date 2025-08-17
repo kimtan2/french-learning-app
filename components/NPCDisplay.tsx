@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NPC, Dialogue } from '@/types/mission';
+import AudioButton from '@/components/AudioButton';
 
 interface NPCDisplayProps {
   npc: NPC;
@@ -20,7 +21,16 @@ const NPCDisplay: React.FC<NPCDisplayProps> = ({ npc, dialogue }) => {
         className="bg-white/95 border-2 border-indigo-400/50 rounded-2xl p-4 mb-6 cursor-pointer transition-all duration-300 hover:bg-white hover:scale-105 shadow-lg max-w-xs w-full animate-slide-up relative"
         onClick={toggleTranslation}
       >
-        <div className="text-slate-800 text-base text-center font-semibold">
+        {/* Audio Button */}
+        <div className="absolute top-2 right-2">
+          <AudioButton 
+            text={dialogue.text} 
+            size="small"
+            className="shadow-md"
+          />
+        </div>
+        
+        <div className="text-slate-800 text-base text-center font-semibold pr-8">
           {dialogue.text}
         </div>
         <div 
