@@ -15,6 +15,7 @@ export interface ActionChoice {
   text: string;
   action: string;
   moodChange: number;
+  nextStepId?: string; // Optional: specify which step to go to
 }
 
 export interface LanguageOption {
@@ -23,6 +24,7 @@ export interface LanguageOption {
   words: Word[];
   correct: 'perfect' | 'acceptable' | 'wrong';
   feedback: Feedback;
+  nextStepId?: string; // Optional: specify which step to go to
 }
 
 export interface Spotlight {

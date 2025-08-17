@@ -27,6 +27,7 @@ export default function Home() {
   });
 
   const [currentFeedback, setCurrentFeedback] = useState<FeedbackType | null>(null);
+  const [pendingNextStepId, setPendingNextStepId] = useState<string | null>(null);
 
   const currentStep = currentMission?.steps[gameState.currentStep];
   const progress = currentMission ? ((gameState.currentStep + 1) / currentMission.steps.length) * 100 : 0;
@@ -37,58 +38,67 @@ export default function Home() {
     return 'Neutral';
   };
 
+  const findStepIndexById = useCallback((stepId: string): number => {
+    if (!currentMission) return -1;
+    return currentMission.steps.findIndex(step => step.id === stepId);
+  }, [currentMission]);
+
   const updateNextButton = useCallback((action: GameState['nextAction']) => {
     setGameState(prev => ({ ...prev, nextAction: action }));
   }, []);
 
   const selectChoice = useCallback((index: number, moodChange: number) => {
+    if (!currentStep?.addonLayer?.choices) return;
+    
+    const choice = currentStep.addonLayer.choices[index];
+    
     setGameState(prev => ({
       ...prev,
       selectedChoice: index,
       mood: prev.mood + moodChange,
-      selectedAction: currentStep?.addonLayer?.choices?.[index].action
+      selectedAction: choice.action
     }));
 
-    const action = currentStep?.addonLayer?.choices?.[index].action;
-    
-    if (action === 'greet') {
-      setTimeout(() => {
-        setGameState(prev => ({ 
-          ...prev, 
-          currentStep: 2,
-          addonActive: false
-        }));
+    // Check if this choice has a specific next step
+    if (choice.nextStepId) {
+      const targetStepIndex = findStepIndexById(choice.nextStepId);
+      if (targetStepIndex !== -1) {
         setTimeout(() => {
           setGameState(prev => ({ 
             ...prev, 
-            addonActive: true,
-            nextAction: 'wait_language_selection'
+            currentStep: targetStepIndex,
+            addonActive: false,
+            selectedChoice: null,
+            feedbackShown: false,
+            nextAction: 'show_addon'
           }));
-        }, 100);
-      }, 300);
-    } else if (action === 'direct') {
-      setTimeout(() => {
-        setGameState(prev => ({ 
-          ...prev, 
-          currentStep: 3,
-          addonActive: false,
-          nextAction: 'proceed',
-          selectedChoice: null,
-          feedbackShown: false
-        }));
-      }, 300);
-    } else {
-      updateNextButton('proceed_after_feedback');
+        }, 300);
+        return;
+      }
     }
-  }, [currentStep, updateNextButton]);
+
+    // Default behavior: proceed to next step
+    updateNextButton('proceed_after_feedback');
+  }, [currentStep, findStepIndexById, updateNextButton]);
 
   const selectLanguageOption = useCallback((index: number) => {
+    if (!currentStep?.addonLayer?.options) return;
+    
+    const option = currentStep.addonLayer.options[index];
+    
     setGameState(prev => ({ 
       ...prev, 
       selectedChoice: index,
       nextAction: 'show_feedback'
     }));
-  }, []);
+
+    // Store the next step ID if specified
+    if (option.nextStepId) {
+      setPendingNextStepId(option.nextStepId);
+    } else {
+      setPendingNextStepId(null);
+    }
+  }, [currentStep]);
 
   const showFeedback = useCallback(() => {
     if (gameState.selectedChoice === null || !currentStep?.addonLayer?.options) return;
@@ -126,6 +136,7 @@ export default function Home() {
           nextAction
         }));
         setCurrentFeedback(null);
+        setPendingNextStepId(null);
         break;
 
       case 'show_addon':
@@ -141,23 +152,37 @@ export default function Home() {
         break;
 
       case 'proceed_after_feedback':
-        const nextStepAfterFeedback = gameState.currentStep + 1;
-        const nextStepAfterFeedbackData = currentMission?.steps[nextStepAfterFeedback];
+        let targetStepIndex: number;
+        
+        // Check if we have a pending next step ID (from language choice)
+        if (pendingNextStepId) {
+          targetStepIndex = findStepIndexById(pendingNextStepId);
+          if (targetStepIndex === -1) {
+            // Fallback to next step if target not found
+            targetStepIndex = gameState.currentStep + 1;
+          }
+        } else {
+          // Default: go to next step
+          targetStepIndex = gameState.currentStep + 1;
+        }
+        
+        const nextStepAfterFeedback = currentMission?.steps[targetStepIndex];
         let nextActionAfterFeedback: GameState['nextAction'] = 'show_addon';
         
-        if (nextStepAfterFeedbackData?.type === 'introduction' || nextStepAfterFeedbackData?.type === 'cultural' || nextStepAfterFeedbackData?.type === 'completion') {
+        if (nextStepAfterFeedback?.type === 'introduction' || nextStepAfterFeedback?.type === 'cultural' || nextStepAfterFeedback?.type === 'completion') {
           nextActionAfterFeedback = 'proceed';
         }
         
         setGameState(prev => ({
           ...prev,
-          currentStep: nextStepAfterFeedback,
+          currentStep: targetStepIndex,
           selectedChoice: null,
           feedbackShown: false,
           addonActive: false,
           nextAction: nextActionAfterFeedback
         }));
         setCurrentFeedback(null);
+        setPendingNextStepId(null);
         break;
 
       case 'restart':
@@ -172,9 +197,10 @@ export default function Home() {
           nextAction: 'start'
         });
         setCurrentFeedback(null);
+        setPendingNextStepId(null);
         break;
     }
-  }, [gameState.nextAction, gameState.currentStep, currentMission, showFeedback]);
+  }, [gameState.nextAction, gameState.currentStep, currentMission, showFeedback, pendingNextStepId, findStepIndexById]);
 
   const getNextButtonText = () => {
     switch (gameState.nextAction) {

@@ -23,6 +23,15 @@ const MissionInput: React.FC<MissionInputProps> = ({ onMissionLoaded, defaultMis
         return { isValid: false, error: 'Mission must have at least one step' };
       }
 
+      // Create a set of all step IDs for validation
+      const stepIds = new Set<string>();
+      for (const step of mission.steps) {
+        const stepObj = step as Record<string, unknown>;
+        if (stepObj.id && typeof stepObj.id === 'string') {
+          stepIds.add(stepObj.id);
+        }
+      }
+
       // Validate each step
       for (let i = 0; i < mission.steps.length; i++) {
         const step = mission.steps[i] as Record<string, unknown>;
@@ -100,6 +109,11 @@ const MissionInput: React.FC<MissionInputProps> = ({ onMissionLoaded, defaultMis
                 if (!choice.icon || !choice.text || !choice.action || typeof choice.moodChange !== 'number') {
                   return { isValid: false, error: `Step ${i + 1}, Choice ${j + 1}: Must have icon, text, action, and moodChange` };
                 }
+                
+                // Validate nextStepId if present
+                if (choice.nextStepId && typeof choice.nextStepId === 'string' && !stepIds.has(choice.nextStepId)) {
+                  return { isValid: false, error: `Step ${i + 1}, Choice ${j + 1}: nextStepId "${choice.nextStepId}" references non-existent step` };
+                }
               }
             }
 
@@ -120,6 +134,11 @@ const MissionInput: React.FC<MissionInputProps> = ({ onMissionLoaded, defaultMis
 
                 if (!feedback.type || !feedback.title || !feedback.message || typeof feedback.xp !== 'number') {
                   return { isValid: false, error: `Step ${i + 1}, Option ${j + 1}: Feedback must have type, title, message, and xp` };
+                }
+
+                // Validate nextStepId if present
+                if (option.nextStepId && typeof option.nextStepId === 'string' && !stepIds.has(option.nextStepId)) {
+                  return { isValid: false, error: `Step ${i + 1}, Option ${j + 1}: nextStepId "${option.nextStepId}" references non-existent step` };
                 }
 
                 for (let k = 0; k < words.length; k++) {
