@@ -234,7 +234,7 @@ export default function Home() {
         return <CulturalNote content={currentStep.content as CulturalContent} />;
       
       case 'completion':
-        return <CompletionScreen content={currentStep.content as CompletionContent} totalXP={gameState.totalXP} />;
+        return <CompletionScreen content={currentStep.content as CompletionContent} totalXP={gameState.totalXP} onRestart={() => setGameState(prev => ({ ...prev, nextAction: 'restart' }))} />;
       
       case 'regular':
         if (currentStep.mainLayer && !currentStep.mainLayer.preservePrevious) {

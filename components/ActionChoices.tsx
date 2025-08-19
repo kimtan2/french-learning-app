@@ -25,11 +25,20 @@ const ActionChoices: React.FC<ActionChoicesProps> = ({
           <button
             key={index}
             onClick={() => onSelectChoice(index, choice.moodChange)}
-            className={`bg-white/5 border-2 border-white/10 rounded-2xl p-4 text-white transition-all duration-300 text-left relative hover:bg-indigo-600/20 hover:border-indigo-400 hover:translate-x-1 ${
-              selectedChoice === index ? 'bg-indigo-600/30 border-indigo-400' : ''
+            className={`bg-white/5 border-2 rounded-2xl p-4 text-white transition-all duration-300 text-left relative ${
+              selectedChoice === index 
+                ? 'bg-indigo-600/40 border-indigo-300 shadow-lg shadow-indigo-500/30 ring-2 ring-indigo-400' 
+                : 'border-white/10 hover:bg-indigo-600/20 hover:border-indigo-400 hover:translate-x-1'
             }`}
           >
-            <span className="inline-block mr-2.5 text-xl">{choice.icon}</span>
+            {/* Selected indicator */}
+            {selectedChoice === index && (
+              <div className="absolute top-2 left-2 w-6 h-6 bg-indigo-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-sm">✓</span>
+              </div>
+            )}
+            
+            <span className={`inline-block mr-2.5 text-xl ${selectedChoice === index ? 'ml-8' : ''}`}>{choice.icon}</span>
             <span className="text-base">{choice.text}</span>
           </button>
         ))}

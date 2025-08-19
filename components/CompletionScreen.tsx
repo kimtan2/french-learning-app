@@ -4,9 +4,10 @@ import { CompletionContent } from '@/types/mission';
 interface CompletionScreenProps {
   content: CompletionContent;
   totalXP: number;
+  onRestart: () => void;
 }
 
-const CompletionScreen: React.FC<CompletionScreenProps> = ({ content, totalXP }) => {
+const CompletionScreen: React.FC<CompletionScreenProps> = ({ content, totalXP, onRestart }) => {
   return (
     <div className="p-8 text-white text-center animate-fade-in">
       <div className="text-8xl mb-5">🎉</div>
@@ -34,6 +35,13 @@ const CompletionScreen: React.FC<CompletionScreenProps> = ({ content, totalXP })
           </div>
         ))}
       </div>
+      
+      <button
+        onClick={onRestart}
+        className="mt-8 bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-none p-4 rounded-2xl text-base font-semibold cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30"
+      >
+        🔄 Restart Mission
+      </button>
     </div>
   );
 };
