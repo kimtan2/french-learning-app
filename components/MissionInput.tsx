@@ -90,12 +90,18 @@ const MissionInput: React.FC<MissionInputProps> = ({ onMissionLoaded, defaultMis
 
           const addonLayer = step.addonLayer as Record<string, unknown>;
           if (addonLayer) {
-            if (!['action_choice', 'language_choice'].includes(addonLayer.type as string)) {
-              return { isValid: false, error: `Step ${i + 1}: Addon layer type must be action_choice or language_choice` };
+            if (!['action_choice', 'language_choice', 'spotlight_display'].includes(addonLayer.type as string)) {
+              return { isValid: false, error: `Step ${i + 1}: Addon layer type must be action_choice, language_choice, or spotlight_display` };
             }
 
-            if (!addonLayer.prompt) {
-              return { isValid: false, error: `Step ${i + 1}: Addon layer must have a prompt` };
+            if (addonLayer.type === 'spotlight_display') {
+              if (!addonLayer.title || !addonLayer.content) {
+                return { isValid: false, error: `Step ${i + 1}: Spotlight display must have title and content` };
+              }
+            } else {
+              if (!addonLayer.prompt) {
+                return { isValid: false, error: `Step ${i + 1}: Addon layer must have a prompt` };
+              }
             }
 
             if (addonLayer.type === 'action_choice') {

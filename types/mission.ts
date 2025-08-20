@@ -50,13 +50,34 @@ export interface MainLayer {
   preservePrevious?: boolean;
 }
 
-export interface AddonLayer {
-  type: 'action_choice' | 'language_choice';
+// Base interface for all addon layers
+interface BaseAddonLayer {
+  type: string;
+}
+
+// Existing addon layer types
+interface ActionChoiceAddon extends BaseAddonLayer {
+  type: 'action_choice';
   prompt: string;
-  choices?: ActionChoice[];
-  options?: LanguageOption[];
+  choices: ActionChoice[];
+}
+
+interface LanguageChoiceAddon extends BaseAddonLayer {
+  type: 'language_choice';
+  prompt: string;
+  options: LanguageOption[];
   spotlight?: Spotlight;
 }
+
+// New spotlight display addon layer
+interface SpotlightDisplayAddon extends BaseAddonLayer {
+  type: 'spotlight_display';
+  title: string;
+  content: string;
+}
+
+// Union type for all addon layers - add new types here for extensibility
+export type AddonLayer = ActionChoiceAddon | LanguageChoiceAddon | SpotlightDisplayAddon;
 
 export interface IntroductionContent {
   title: string;
@@ -95,6 +116,6 @@ export interface GameState {
   feedbackShown: boolean;
   addonActive: boolean;
   path: string[];
-  nextAction: 'start' | 'proceed' | 'show_addon' | 'wait_selection' | 'wait_language_selection' | 'show_feedback' | 'proceed_after_feedback' | 'restart';
+  nextAction: 'start' | 'proceed' | 'show_addon' | 'wait_selection' | 'wait_language_selection' | 'show_feedback' | 'proceed_after_feedback' | 'restart' | 'understood';
   selectedAction?: string;
 }

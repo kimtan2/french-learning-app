@@ -12,6 +12,7 @@ import LanguageChoices from '@/components/LanguageChoices';
 import Feedback from '@/components/Feedback';
 import CulturalNote from '@/components/CulturalNote';
 import CompletionScreen from '@/components/CompletionScreen';
+import SpotlightDisplay from '@/components/SpotlightDisplay';
 
 export default function Home() {
   const [currentMission, setCurrentMission] = useState<MissionData | null>(null);
@@ -29,7 +30,27 @@ export default function Home() {
   const [currentFeedback, setCurrentFeedback] = useState<FeedbackType | null>(null);
   const [pendingNextStepId, setPendingNextStepId] = useState<string | null>(null);
 
+  // Auto-show addon for steps with no main content
   const currentStep = currentMission?.steps[gameState.currentStep];
+  
+  React.useEffect(() => {
+    if (currentStep?.type === 'regular' && gameState.nextAction === 'show_addon') {
+      const hasMainContent = currentStep.mainLayer && 
+                            currentStep.mainLayer.npc && 
+                            currentStep.mainLayer.dialogue &&
+                            !currentStep.mainLayer.preservePrevious;
+      
+      if (!hasMainContent && !gameState.addonActive) {
+        // No main content, show addon immediately
+        setGameState(prev => ({
+          ...prev,
+          addonActive: true,
+          nextAction: 'wait_selection'
+        }));
+      }
+    }
+  }, [currentStep, gameState.nextAction, gameState.addonActive]);
+
   const progress = currentMission ? ((gameState.currentStep + 1) / currentMission.steps.length) * 100 : 0;
 
   const getMoodText = (mood: number) => {
@@ -48,7 +69,7 @@ export default function Home() {
   }, []);
 
   const selectChoice = useCallback((index: number, moodChange: number) => {
-    if (!currentStep?.addonLayer?.choices) return;
+    if (!currentStep?.addonLayer || currentStep.addonLayer.type !== 'action_choice') return;
     
     const choice = currentStep.addonLayer.choices[index];
     
@@ -82,7 +103,7 @@ export default function Home() {
   }, [currentStep, findStepIndexById, updateNextButton]);
 
   const selectLanguageOption = useCallback((index: number) => {
-    if (!currentStep?.addonLayer?.options) return;
+    if (!currentStep?.addonLayer || currentStep.addonLayer.type !== 'language_choice') return;
     
     const option = currentStep.addonLayer.options[index];
     
@@ -100,8 +121,30 @@ export default function Home() {
     }
   }, [currentStep]);
 
+  const handleUnderstood = useCallback(() => {
+    // Handle understood directly - proceed to next step
+    const targetStepIndex = gameState.currentStep + 1;
+    const nextStep = currentMission?.steps[targetStepIndex];
+    let nextAction: GameState['nextAction'] = 'show_addon';
+    
+    if (nextStep?.type === 'introduction' || nextStep?.type === 'cultural' || nextStep?.type === 'completion') {
+      nextAction = 'proceed';
+    }
+    
+    setGameState(prev => ({
+      ...prev,
+      currentStep: targetStepIndex,
+      selectedChoice: null,
+      feedbackShown: false,
+      addonActive: false,
+      nextAction
+    }));
+    setCurrentFeedback(null);
+    setPendingNextStepId(null);
+  }, [gameState.currentStep, currentMission]);
+
   const showFeedback = useCallback(() => {
-    if (gameState.selectedChoice === null || !currentStep?.addonLayer?.options) return;
+    if (gameState.selectedChoice === null || !currentStep?.addonLayer || currentStep.addonLayer.type !== 'language_choice') return;
     
     const option = currentStep.addonLayer.options[gameState.selectedChoice];
     const feedback = option.feedback;
@@ -125,6 +168,27 @@ export default function Home() {
         
         if (nextStep?.type === 'introduction' || nextStep?.type === 'cultural' || nextStep?.type === 'completion') {
           nextAction = 'proceed';
+        } else if (nextStep?.type === 'regular') {
+          // Check if this regular step has no mainLayer content
+          const hasMainContent = nextStep.mainLayer && 
+                                nextStep.mainLayer.npc && 
+                                nextStep.mainLayer.dialogue &&
+                                !nextStep.mainLayer.preservePrevious;
+          
+          if (!hasMainContent) {
+            // No main content, show addon immediately
+            setGameState(prev => ({
+              ...prev,
+              currentStep: nextStepIndex,
+              selectedChoice: null,
+              feedbackShown: false,
+              addonActive: true,
+              nextAction: 'wait_selection'
+            }));
+            setCurrentFeedback(null);
+            setPendingNextStepId(null);
+            return;
+          }
         }
         
         setGameState(prev => ({
@@ -151,6 +215,7 @@ export default function Home() {
         showFeedback();
         break;
 
+      case 'understood':
       case 'proceed_after_feedback':
         let targetStepIndex: number;
         
@@ -200,9 +265,14 @@ export default function Home() {
         setPendingNextStepId(null);
         break;
     }
-  }, [gameState.nextAction, gameState.currentStep, currentMission, showFeedback, pendingNextStepId, findStepIndexById]);
+  }, [gameState.nextAction, gameState.currentStep, currentMission, showFeedback, pendingNextStepId, findStepIndexById, currentStep]);
 
   const getNextButtonText = () => {
+    // Don't show button for spotlight displays - they handle their own navigation
+    if (currentStep?.addonLayer?.type === 'spotlight_display' && gameState.addonActive) {
+      return 'Continue';
+    }
+    
     switch (gameState.nextAction) {
       case 'start': return 'Start Mission';
       case 'proceed': 
@@ -213,6 +283,7 @@ export default function Home() {
       case 'wait_selection':
       case 'wait_language_selection': return 'Select an option';
       case 'show_feedback': return 'Check Answer';
+      case 'understood': return 'Continue (understood)';
       case 'proceed_after_feedback': return 'Continue';
       case 'restart': return 'Restart Mission';
       default: return 'Next';
@@ -220,7 +291,13 @@ export default function Home() {
   };
 
   const isButtonDisabled = () => {
-    return gameState.nextAction === 'wait_selection' || gameState.nextAction === 'wait_language_selection';
+    // Hide button completely for spotlight displays when addon is active
+    if (currentStep?.addonLayer?.type === 'spotlight_display' && gameState.addonActive) {
+      return true;
+    }
+    
+    return gameState.nextAction === 'wait_selection' || 
+           gameState.nextAction === 'wait_language_selection';
   };
 
   const renderMainContent = () => {
@@ -237,11 +314,11 @@ export default function Home() {
         return <CompletionScreen content={currentStep.content as CompletionContent} totalXP={gameState.totalXP} onRestart={() => setGameState(prev => ({ ...prev, nextAction: 'restart' }))} />;
       
       case 'regular':
-        if (currentStep.mainLayer && !currentStep.mainLayer.preservePrevious) {
+        if (currentStep.mainLayer && !currentStep.mainLayer.preservePrevious && currentStep.mainLayer.npc && currentStep.mainLayer.dialogue) {
           return (
             <NPCDisplay 
-              npc={currentStep.mainLayer.npc!} 
-              dialogue={currentStep.mainLayer.dialogue!} 
+              npc={currentStep.mainLayer.npc} 
+              dialogue={currentStep.mainLayer.dialogue} 
             />
           );
         }
@@ -260,7 +337,7 @@ export default function Home() {
         return (
           <ActionChoices
             prompt={currentStep.addonLayer.prompt}
-            choices={currentStep.addonLayer.choices!}
+            choices={currentStep.addonLayer.choices}
             selectedChoice={gameState.selectedChoice}
             onSelectChoice={selectChoice}
           />
@@ -271,13 +348,22 @@ export default function Home() {
           <>
             <LanguageChoices
               prompt={currentStep.addonLayer.prompt}
-              options={currentStep.addonLayer.options!}
+              options={currentStep.addonLayer.options}
               selectedChoice={gameState.selectedChoice}
               onSelectOption={selectLanguageOption}
               spotlight={currentStep.addonLayer.spotlight}
             />
             {currentFeedback && <Feedback feedback={currentFeedback} />}
           </>
+        );
+      
+      case 'spotlight_display':
+        return (
+          <SpotlightDisplay
+            title={currentStep.addonLayer.title}
+            content={currentStep.addonLayer.content}
+            onUnderstood={handleUnderstood}
+          />
         );
       
       default:
@@ -311,7 +397,7 @@ export default function Home() {
         </div>
         
         <div className={`absolute left-0 right-0 bg-slate-700 rounded-t-3xl p-8 max-h-[70%] overflow-y-auto shadow-2xl transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${
-          gameState.addonActive ? 'bottom-16' : '-bottom-full'
+          gameState.addonActive ? (renderMainContent() ? 'bottom-16' : 'bottom-0') : '-bottom-full'
         }`}>
           {renderAddonContent()}
         </div>
@@ -319,7 +405,7 @@ export default function Home() {
 
       <button
         className={`absolute bottom-5 left-5 right-5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-none p-4 rounded-2xl text-base font-semibold cursor-pointer transition-all duration-200 z-50 ${
-          isButtonDisabled() ? 'opacity-50 pointer-events-none' : 'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30'
+          (isButtonDisabled() || (currentStep?.addonLayer?.type === 'spotlight_display' && gameState.addonActive)) ? 'opacity-0 pointer-events-none' : 'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30'
         }`}
         onClick={handleNext}
         disabled={isButtonDisabled()}
