@@ -29,9 +29,22 @@ export default function Home() {
 
   const [currentFeedback, setCurrentFeedback] = useState<FeedbackType | null>(null);
   const [pendingNextStepId, setPendingNextStepId] = useState<string | null>(null);
+  const [previousMainLayer, setPreviousMainLayer] = useState<any>(null);
 
   // Auto-show addon for steps with no main content
   const currentStep = currentMission?.steps[gameState.currentStep];
+  
+  // Update previous main layer when current step has valid main content
+  React.useEffect(() => {
+    if (currentStep?.type === 'regular' && currentStep.mainLayer && 
+        currentStep.mainLayer.npc && currentStep.mainLayer.dialogue &&
+        !currentStep.mainLayer.preservePrevious) {
+      setPreviousMainLayer({
+        npc: currentStep.mainLayer.npc,
+        dialogue: currentStep.mainLayer.dialogue
+      });
+    }
+  }, [currentStep]);
   
   React.useEffect(() => {
     if (currentStep?.type === 'regular' && gameState.nextAction === 'show_addon') {
@@ -162,6 +175,24 @@ export default function Home() {
     switch (gameState.nextAction) {
       case 'start':
       case 'proceed':
+        // If we're on a completion step and the button says "Restart Mission", restart the game
+        if (currentStep?.type === 'completion') {
+          setGameState({
+            currentStep: 0,
+            totalXP: 0,
+            mood: 0,
+            selectedChoice: null,
+            feedbackShown: false,
+            addonActive: false,
+            path: [],
+            nextAction: 'start'
+          });
+          setCurrentFeedback(null);
+          setPendingNextStepId(null);
+          setPreviousMainLayer(null);
+          break;
+        }
+        
         const nextStepIndex = gameState.currentStep + 1;
         const nextStep = currentMission?.steps[nextStepIndex];
         let nextAction: GameState['nextAction'] = 'show_addon';
@@ -278,6 +309,7 @@ export default function Home() {
       case 'proceed': 
         if (currentStep?.type === 'introduction') return 'Begin Mission';
         if (currentStep?.type === 'cultural') return 'Continue';
+        if (currentStep?.type === 'completion') return 'Restart Mission';
         return 'Continue';
       case 'show_addon': return 'Next';
       case 'wait_selection':
@@ -311,7 +343,7 @@ export default function Home() {
         return <CulturalNote content={currentStep.content as CulturalContent} />;
       
       case 'completion':
-        return <CompletionScreen content={currentStep.content as CompletionContent} totalXP={gameState.totalXP} onRestart={() => setGameState(prev => ({ ...prev, nextAction: 'restart' }))} />;
+        return <CompletionScreen content={currentStep.content as CompletionContent} totalXP={gameState.totalXP} />;
       
       case 'regular':
         if (currentStep.mainLayer && !currentStep.mainLayer.preservePrevious && currentStep.mainLayer.npc && currentStep.mainLayer.dialogue) {
@@ -319,6 +351,15 @@ export default function Home() {
             <NPCDisplay 
               npc={currentStep.mainLayer.npc} 
               dialogue={currentStep.mainLayer.dialogue} 
+            />
+          );
+        }
+        // If current step has no mainLayer but we have a previous one, show the previous one
+        if (previousMainLayer && (!currentStep.mainLayer || !currentStep.mainLayer.npc || !currentStep.mainLayer.dialogue)) {
+          return (
+            <NPCDisplay 
+              npc={previousMainLayer.npc} 
+              dialogue={previousMainLayer.dialogue} 
             />
           );
         }
