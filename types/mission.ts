@@ -105,6 +105,8 @@ export interface MissionStep {
 }
 
 export interface MissionData {
+  id?: string;
+  title?: string;
   steps: MissionStep[];
 }
 

@@ -1,9 +1,12 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { GameState, Feedback as FeedbackType, IntroductionContent, CulturalContent, CompletionContent, MissionData } from '@/types/mission';
+import { GameState, Feedback as FeedbackType, IntroductionContent, CulturalContent, CompletionContent, MissionData, NPC, Dialogue } from '@/types/mission';
 import { baguetteMission } from '@/data/baguetteMission';
-import MissionInput from '@/components/MissionInput';
+import CityMap from '@/components/CityMap';
+import BottomNavigation from '@/components/BottomNavigation';
+import Settings from '@/components/Settings';
+import SkillArea from '@/components/SkillArea';
 import Header from '@/components/Header';
 import IntroductionStep from '@/components/IntroductionStep';
 import NPCDisplay from '@/components/NPCDisplay';
@@ -15,7 +18,10 @@ import CompletionScreen from '@/components/CompletionScreen';
 import SpotlightDisplay from '@/components/SpotlightDisplay';
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<'home' | 'skills' | 'settings'>('home');
+  const [currentLanguage, setCurrentLanguage] = useState<'french' | 'german'>('french');
   const [currentMission, setCurrentMission] = useState<MissionData | null>(null);
+  const [isInMission, setIsInMission] = useState(false);
   const [gameState, setGameState] = useState<GameState>({
     currentStep: 0,
     totalXP: 0,
@@ -29,7 +35,7 @@ export default function Home() {
 
   const [currentFeedback, setCurrentFeedback] = useState<FeedbackType | null>(null);
   const [pendingNextStepId, setPendingNextStepId] = useState<string | null>(null);
-  const [previousMainLayer, setPreviousMainLayer] = useState<any>(null);
+  const [previousMainLayer, setPreviousMainLayer] = useState<{npc: NPC; dialogue: Dialogue} | null>(null);
 
   // Auto-show addon for steps with no main content
   const currentStep = currentMission?.steps[gameState.currentStep];
@@ -412,47 +418,112 @@ export default function Home() {
     }
   };
 
-  // Show mission input if no mission is loaded
-  if (!currentMission) {
+  const handleLocationClick = (_locationId: string) => {
+    setCurrentMission(baguetteMission);
+    setIsInMission(true);
+  };
+
+  const handleMissionEnd = () => {
+    setIsInMission(false);
+    setCurrentMission(null);
+    setGameState({
+      currentStep: 0,
+      totalXP: 0,
+      mood: 0,
+      selectedChoice: null,
+      feedbackShown: false,
+      addonActive: false,
+      path: [],
+      nextAction: 'start'
+    });
+    setCurrentFeedback(null);
+    setPendingNextStepId(null);
+    setPreviousMainLayer(null);
+  };
+
+  const handleMissionImport = (mission: MissionData) => {
+    // Store the imported mission for future use
+    console.log('Mission imported:', mission);
+  };
+
+  if (isInMission && currentMission) {
     return (
-      <MissionInput 
-        onMissionLoaded={setCurrentMission}
-        defaultMission={baguetteMission}
-      />
+      <div className="w-full max-w-md h-screen max-h-[800px] bg-slate-900 rounded-3xl shadow-2xl overflow-hidden relative flex flex-col mx-auto">
+        <Header
+          totalXP={gameState.totalXP}
+          currentStep={gameState.currentStep + 1}
+          totalSteps={currentMission?.steps.length || 0}
+          mood={getMoodText(gameState.mood)}
+          progress={progress}
+        />
+
+        <div className="flex-1 relative bg-slate-800 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-900 to-slate-800">
+            {renderMainContent()}
+          </div>
+          
+          <div className={`absolute left-0 right-0 bg-slate-700 rounded-t-3xl p-8 max-h-[70%] overflow-y-auto shadow-2xl transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${
+            gameState.addonActive ? (renderMainContent() ? 'bottom-16' : 'bottom-0') : '-bottom-full'
+          }`}>
+            {renderAddonContent()}
+          </div>
+        </div>
+
+        <div className="absolute top-4 right-4 z-50">
+          <button
+            className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-full transition-colors"
+            onClick={handleMissionEnd}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" />
+            </svg>
+          </button>
+        </div>
+
+        <button
+          className={`absolute bottom-5 left-5 right-5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-none p-4 rounded-2xl text-base font-semibold cursor-pointer transition-all duration-200 z-50 ${
+            (isButtonDisabled() || (currentStep?.addonLayer?.type === 'spotlight_display' && gameState.addonActive)) ? 'opacity-0 pointer-events-none' : 'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30'
+          }`}
+          onClick={handleNext}
+          disabled={isButtonDisabled()}
+        >
+          {getNextButtonText()}
+        </button>
+      </div>
     );
   }
 
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'home':
+        return (
+          <CityMap 
+            language={currentLanguage} 
+            onLocationClick={handleLocationClick}
+          />
+        );
+      case 'skills':
+        return <SkillArea />;
+      case 'settings':
+        return (
+          <Settings 
+            currentLanguage={currentLanguage}
+            onLanguageChange={setCurrentLanguage}
+            onMissionImport={handleMissionImport}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="w-full max-w-md h-screen max-h-[800px] bg-slate-900 rounded-3xl shadow-2xl overflow-hidden relative flex flex-col mx-auto">
-      <Header
-        totalXP={gameState.totalXP}
-        currentStep={gameState.currentStep + 1}
-        totalSteps={currentMission?.steps.length || 0}
-        mood={getMoodText(gameState.mood)}
-        progress={progress}
+      {renderTabContent()}
+      <BottomNavigation 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
       />
-
-      <div className="flex-1 relative bg-slate-800 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-900 to-slate-800">
-          {renderMainContent()}
-        </div>
-        
-        <div className={`absolute left-0 right-0 bg-slate-700 rounded-t-3xl p-8 max-h-[70%] overflow-y-auto shadow-2xl transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${
-          gameState.addonActive ? (renderMainContent() ? 'bottom-16' : 'bottom-0') : '-bottom-full'
-        }`}>
-          {renderAddonContent()}
-        </div>
-      </div>
-
-      <button
-        className={`absolute bottom-5 left-5 right-5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-none p-4 rounded-2xl text-base font-semibold cursor-pointer transition-all duration-200 z-50 ${
-          (isButtonDisabled() || (currentStep?.addonLayer?.type === 'spotlight_display' && gameState.addonActive)) ? 'opacity-0 pointer-events-none' : 'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/30'
-        }`}
-        onClick={handleNext}
-        disabled={isButtonDisabled()}
-      >
-        {getNextButtonText()}
-      </button>
     </div>
   );
 }
